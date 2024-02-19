@@ -1,0 +1,33 @@
+import React from 'react';
+
+const DownloadCSV = () => {
+  const handleDownload = async () => {
+    try {
+      // Fetch CSV file from backend
+      const response = await fetch('/api/data.csv');
+      const csvData = await response.text();
+      
+      // Trigger download
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading CSV:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h1>Download CSV</h1>
+      <button onClick={handleDownload}>Download CSV</button>
+    </div>
+  );
+};
+
+export default DownloadCSV;
