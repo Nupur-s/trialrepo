@@ -1,0 +1,81 @@
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
+import org.springframework.kafka.listener.config.ContainerProperties;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+
+@Configuration
+public class KafkaConsumerConfig {
+
+    @Bean
+    public ConsumerFactory<String, String> consumerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, "consumer-group");
+        config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+
+        return new DefaultKafkaConsumerFactory<>(config);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory());
+        factory.setConcurrency(1); // Set concurrency level if you have multiple consumers per group
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE); // Manual ack for control
+        return factory;
+    }
+}
+
+
+
+
+
+
+
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.listener.Acknowledgment;
+import org.springframework.stereotype.Service;
+
+import java.util.function.Predicate;
+
+@Service
+public class FilteredKafkaConsumer {
+
+    private final Predicate<String> filterPredicate;
+
+    public FilteredKafkaConsumer(@Value("${consumer.filter.key}") String filterCondition) {
+        // Define the predicate based on the filter condition (e.g., < 1000)
+        this.filterPredicate = key -> Integer.parseInt(key) < Integer.parseInt(filterCondition);
+    }
+
+    @KafkaListener(topics = "your-topic-name", groupId = "consumer-group")
+    public void listen(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        if (filterPredicate.test(record.key())) {
+            // Process the message
+            System.out.printf("Processing message: key = %s, value = %s%n", record.key(), record.value());
+            // Manually acknowledge the message after processing
+            acknowledgment.acknowledge();
+        } else {
+            // Skip the message and move to the next one
+            System.out.printf("Skipping message: key = %s%n", record.key());
+        }
+    }
+}
+
+consumer.filter.key=1000
