@@ -46,6 +46,16 @@ public class KafkaStreamsConfig {
         return new KafkaStreamsConfiguration(props);
     }
 
+  @Bean
+    public StreamsBuilderFactoryBean streamsBuilderFactoryBean(KafkaStreamsConfiguration kafkaStreamsConfiguration) {
+        return new StreamsBuilderFactoryBean(kafkaStreamsConfiguration);
+    }
+
+    @Bean
+    public StreamsBuilder streamsBuilder(StreamsBuilderFactoryBean streamsBuilderFactoryBean) throws Exception {
+        return streamsBuilderFactoryBean.getObject();
+    }
+
     // Define the stream topology
     @Bean
     public KStream<String, Object> kStream(StreamsBuilder builder) {
