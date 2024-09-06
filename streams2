@@ -82,3 +82,57 @@ public class KafkaStreamsConfig {
         return stream;
     }
 }
+
+-----------------------------------------------------------------------------------------------------------------------------------
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.Produced;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.annotation.EnableKafkaStreams;
+
+import java.util.List;
+import java.util.Properties;
+
+@Configuration
+@EnableKafkaStreams
+public class KafkaStreamsConfig {
+
+    @Value("${kafka.bootstrap-servers}")
+    private String bootstrapServers;
+
+    @Bean
+    public KafkaStreams streamCreator() {
+        // Create a StreamsBuilder instance to build the processing topology
+        StreamsBuilder streamsBuilder = new StreamsBuilder();
+
+        // Define the processing topology
+        KStream<String, String> textLines = streamsBuilder.stream("input-topic");
+
+        // Perform word count: split lines into words, group by word, count occurrences
+        KStream<String, Long> wordCounts = textLines
+            .flatMapValues(textLine -> List.of(textLine.toLowerCase().split("\\W+"))) // Split lines into words
+            .groupBy((key, word) -> word) // Group by word
+            .count(Materialized.as("counts-store")) // Count occurrences, store in "counts-store"
+            .toStream(); // Convert the aggregated results back to a KStream
+
+        // Output the word counts to the "output-topic"
+        wordCounts.to("output-topic", Produced.with(Serdes.String(), Serdes.Long()));
+
+        // Create properties for Kafka Streams configuration
+        Properties props = new Properties();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "word-count-app"); // Set application ID
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers); // Set Kafka bootstrap servers
+
+        // Create and start a KafkaStreams instance with the defined topology and properties
+        KafkaStreams kafkaStreams = new KafkaStreams(streamsBuilder.build(), props);
+        kafkaStreams.start(); // Start the Kafka Streams application
+        return kafkaStreams; // Return the KafkaStreams instance
+    }
+}
+
