@@ -1,0 +1,74 @@
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.Produced;
+import org.apache.kafka.common.serialization.Serdes;
+import io.confluent.kafka.streams.serdes.avro.GenericAvroSerde;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.annotation.EnableKafkaStreams;
+import org.springframework.kafka.config.StreamsBuilderFactoryBean;
+import org.springframework.kafka.config.KafkaStreamsConfiguration;
+
+import java.util.Map;
+import java.util.Collections;
+import java.util.HashMap;
+
+@Configuration
+@EnableKafkaStreams
+public class KafkaStreamsConfig {
+
+    // Define Kafka Streams configuration and pass the properties
+    @Bean(name = StreamsConfig.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
+    public KafkaStreamsConfiguration kafkaStreamsConfiguration() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-streams-springboot-app");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "<your-bootstrap-servers>");
+        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, GenericAvroSerde.class.getName());
+        
+        // Security settings
+        props.put("security.protocol", "SASL_SSL");
+        props.put("sasl.jaas.config", 
+            "org.apache.kafka.common.security.plain.PlainLoginModule required username='<api-key>' password='<api-secret>';");
+        props.put("sasl.mechanism", "PLAIN");
+        
+        // Schema registry
+        props.put("schema.registry.url", "<your-schema-registry-url>");
+        props.put("basic.auth.credentials.source", "USER_INFO");
+        props.put("schema.registry.basic.auth.user.info", "<schema-registry-api-key>:<schema-registry-api-secret>");
+        
+        // Additional properties
+        props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);  // Commit every 1 second
+        props.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 10 * 1024 * 1024L);  // 10MB cache
+
+        return new KafkaStreamsConfiguration(props);
+    }
+
+    // Define the stream topology
+    @Bean
+    public KStream<String, Object> kStream(StreamsBuilder builder) {
+        // Configure Avro Serdes
+        Map<String, String> serdeConfig = Collections.singletonMap("schema.registry.url", "<your-schema-registry-url>");
+        final GenericAvroSerde valueSerde = new GenericAvroSerde();
+        valueSerde.configure(serdeConfig, false);
+
+        // Define the input stream
+        KStream<String, Object> stream = builder.stream("<input-topic>", Consumed.with(Serdes.String(), valueSerde));
+
+        // Process and route to output topics based on key
+        stream
+            .filter((key, value) -> key != null)
+            .to((key, value, recordContext) -> {
+                // Route logic
+                if (key.startsWith("A")) {
+                    return "<output-topic-A>";
+                } else {
+                    return "<output-topic-B>";
+                }
+            }, Produced.with(Serdes.String(), valueSerde));
+
+        return stream;
+    }
+}
