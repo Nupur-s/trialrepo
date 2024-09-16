@@ -1,0 +1,35 @@
+----SMT kafka connect config----
+
+{
+  "name": "replicator-connector",
+  "config": {
+    "connector.class": "io.confluent.connect.replicator.ReplicatorSourceConnector",
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://<source-schema-registry-url>",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://<source-schema-registry-url>",
+    "tasks.max": "1",
+    "topic.whitelist": "source-topic",
+    "confluent.topic.replication.factor": "3",
+    "dest.kafka.bootstrap.servers": "<destination-kafka-bootstrap-servers>",
+    "schema.registry.url": "http://<destination-schema-registry-url>",
+
+    // Step 1: Extract the messageId field and set it as the key
+    "transforms": "extractField,messageRouter",
+
+    // Extract messageId as key
+    "transforms.extractField.type": "org.apache.kafka.connect.transforms.ValueToKey",
+    "transforms.extractField.fields": "messageId",
+
+    // Route messages based on the messageId
+    "transforms.messageRouter.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.messageRouter.regex": "source-topic",
+    
+    // Map messageId to specific topics
+    "transforms.routeToSpecificTopics.replacement": "${key == '1' ? 'destination-topic-A' : (key == '2' ? 'destination-topic-B' : 'destination-topic-C')}"
+
+  }
+}
+
+--Producer and consumer are same as the ones currently used --
+
